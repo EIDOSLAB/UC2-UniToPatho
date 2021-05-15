@@ -1,0 +1,16 @@
+FROM dhealth/pylibs-toolkit:0.10.0-cudnn
+RUN apt-get update
+RUN apt-get install -y iputils-ping iproute2 git tmux virtualenv wget vim curl
+RUN pip3 install meson==0.53.2 ninja
+RUN wget https://www.cairographics.org/releases/pixman-0.40.0.tar.gz
+RUN tar -xf pixman-0.40.0.tar.gz
+RUN mkdir pixman-0.40.0/build
+RUN meson --prefix=/usr pixman-0.40.0/ pixman-0.40.0/build/
+RUN cd pixman-0.40.0/build/ ; ninja
+RUN cd pixman-0.40.0/build/ ; ninja install
+RUN rm -r pixman-0.40.0
+RUN rm pixman-0.40.0.tar.gz
+RUN pip3 install pandas numpy opencv-python pyyaml scikit-learn matplotlib albumentations wandb tqdm openslide_python scikit-image pydicom gdown seaborn
+RUN export LANG=C.UTF-8
+RUN export LC_ALL=C.UTF-8
+
