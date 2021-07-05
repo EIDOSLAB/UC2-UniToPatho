@@ -23,7 +23,7 @@ This script will generate all files needed in the [DeepHealth Toolkit Dataset Fo
 
 Example:
 
-`python3 gen_yaml.py --folder <dataset_path>/unitopath-public/ --val_set --balanced --gen_800_224`
+`python3 gen_yaml.py --folder <dataset_path>/unitopath-public/ --val_set --balanced --gen_adenoma
 
 ```
 usage: gen_yaml.py [-h] --folder FOLDER [--trainlist TRAINLIST]
@@ -38,8 +38,10 @@ optional arguments:
   --balance             balance training set
   --val_set             create validation set
   --gen_800_224         create a 224px version of 800micrometer dataset (it takes some time)
+  --gen_HG_LG           create yml for hg lg only, 2 classes, for 800
+  --gen_adenoma         create yml for adenoma type only, 3 classes, for 7000
   --seed SEED           seed for data balancing
-  --bal_idx BAL_IDX     less represented class for dataset balancing (default 3 => 4th)
+  --bal_idx BAL_IDX     less represented class index for dataset balancing (default 3)
 ```
 
 ##### Step 3_bis: (Optional) Run `model_pytorch2onnx.py`
@@ -71,7 +73,7 @@ optional arguments:
   --batch-size INT      batch-size for 224x224 resolution images
   --fullres-batch-size  batch-size for full resolution images
   --gpu GPU [GPU ...]   `--gpu 1 1` to use two GPUs
-  --temp_folder         temporary folder for inference speedup (slow down the first run, high storage demand )
+  --temp_folder         temporary folder for inference speedup (slow down the first run, high storage demand ), default none
 ```
 
 ##### Step 2: Run Inference script `Unitopatho_ensemble_results.py`
@@ -135,13 +137,13 @@ optional arguments:
   --gpu GPU [GPU ...]   `--gpu 1 1` to use two GPUs
   --checkpoints DIR     if set, save checkpoints in this directory
   --name NAME           run name
-  --pretrain PRETRAIN   use pretrained resnet network: default=18, allows 50
-                        and -1 (resnet 18 not pretrained)
-  --input-size          224 px or original size (1812 at 800um)
+  --pretrain PRETRAIN   use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)
+  --input-size          224 px or original size 
   --seed SEED           training seed
-  --yml-name YML_NAME   yml name (default=deephealth-uc2-800_224_balanced.yml)
+  --yml-name YML_NAME   yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )
   --ckpts RESUME_PATH   resume trining from a checkpoint
   --wandb               enable wandb logs
+  --mem                 allows full_mem, mid_mem, low_mem
 ```
 
 ##### Step 2: Train with `colorectal_polyp_classification_inference.py`
@@ -167,16 +169,12 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --ckpts CHECKPOINTS_PATH
-                        checkpoint path
+  --ckpts               checkpoint path
   --batch-size INT      batch-size
   --gpu GPU [GPU ...]   `--gpu 1 1` to use two GPUs
-  --pretrain PRETRAIN   use pretrained resnet network: default=18, allows 50
-                        and -1 (resnet 18 not pretrained)
-  --yml-name YML_NAME   yml name (default=deephealth-uc2-800_224_balanced.yml
-                        )
-  --input-size INPUT_SIZE
-                        224 px or original size (1812 at 800um)
+  --pretrain PRETRAIN   use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)
+  --yml-name YML_NAME   yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )
+  --input-size          224 px or original size 
 ```
 
 ## Generate your own dataset from `.ndpi` Whole Slides and `.ndpa` annotation files
