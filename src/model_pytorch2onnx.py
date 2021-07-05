@@ -4,39 +4,40 @@ import torchvision
 import gdown
 import os
 
-num_classes = 6
+num_classes = 3 #6
+size = 224 #1812 #224
 train = True
 ## Resnet18
 
 # Export model to onnx format
-dummy_input = Variable(torch.randn(1, 3, 224, 224))
+dummy_input = Variable(torch.randn(1, 3, size, size))
 model = torchvision.models.resnet18(pretrained=True)
 model.fc = torch.nn.Sequential(torch.nn.Linear(model.fc.in_features, num_classes),torch.nn.Softmax(dim=1))
 model.train(mode=train)
-torch.onnx.export( model , dummy_input , "onnx_models/resnet18_6c_pretrained.onnx" , export_params=True, training = torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL , opset_version=12, do_constant_folding=False)
+torch.onnx.export( model , dummy_input , f"onnx_models/resnet18_{num_classes}c_pretrained.onnx" , export_params=True, training = torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL , opset_version=12, do_constant_folding=False)
 
 # Export model to onnx format
-dummy_input = Variable(torch.randn(1, 3, 224, 224))
+dummy_input = Variable(torch.randn(1, 3, size, size))
 model = torchvision.models.resnet18(pretrained=False, num_classes = num_classes)
 model.fc = torch.nn.Sequential(model.fc,torch.nn.Softmax(dim=1))
 model.train(mode=train)
-torch.onnx.export(model, dummy_input, "onnx_models/resnet18_6c.onnx", export_params=True, training = torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL , opset_version=12, do_constant_folding=False)
+torch.onnx.export(model, dummy_input, f"onnx_models/resnet18_{num_classes}c.onnx", export_params=True, training = torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL , opset_version=12, do_constant_folding=False)
 
 ## Resnet18
 
 # Export model to onnx format
-dummy_input = Variable(torch.randn(1, 3, 224, 224))
+dummy_input = Variable(torch.randn(1, 3, size, size))
 model = torchvision.models.resnet50(pretrained=True)
 model.fc = torch.nn.Sequential(torch.nn.Linear(model.fc.in_features, num_classes),torch.nn.Softmax(dim=1))
 model.train(mode=train)
-torch.onnx.export( model , dummy_input , "onnx_models/resnet50_6c_pretrained.onnx" , export_params=True, training = torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL , opset_version=12, do_constant_folding=False)
+torch.onnx.export( model , dummy_input , f"onnx_models/resnet50_{num_classes}c_pretrained.onnx" , export_params=True, training = torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL , opset_version=12, do_constant_folding=False)
 
 # Export model to onnx format
-dummy_input = Variable(torch.randn(1, 3, 224, 224))
+dummy_input = Variable(torch.randn(1, 3, size, size))
 model = torchvision.models.resnet50(pretrained=False, num_classes = num_classes)
 model.fc = torch.nn.Sequential(model.fc,torch.nn.Softmax(dim=1))
 model.train(mode=train)
-torch.onnx.export(model, dummy_input, "onnx_models/resnet50_6c.onnx", export_params=True, training = torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL , opset_version=12, do_constant_folding=False)
+torch.onnx.export(model, dummy_input, f"onnx_models/resnet50_{num_classes}c.onnx", export_params=True, training = torch.onnx.TrainingMode.TRAINING if train else torch.onnx.TrainingMode.EVAL , opset_version=12, do_constant_folding=False)
 
 # Export model used to UniToPatho inference to onnx format
 def onnx_icip_models():

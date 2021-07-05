@@ -45,7 +45,7 @@ def infer_grade(threshold, row):
     return 1 if hg/total > threshold else 0
 
 
-def analyze(gt, adenoma_df, grade_df, hp_df, grade_threshold):#, type=False):
+def analyze(gt, adenoma_df, grade_df, hp_df, grade_threshold):
     df = adenoma_df.copy()
 
     df['predicted_hp'] = (hp_df.iloc[:, 0].values == 0).astype(np.int)
@@ -110,8 +110,6 @@ def main(config):
     print("Precision Score:\t", precision_score)
     print("Balanced accuracy:\t", ba_score)
     print("Categorical accuracy:\t", acc_score)
-
-
 
 
 

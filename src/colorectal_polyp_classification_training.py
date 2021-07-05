@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 """\
-colorectal polyp classification training example.
+colorectal polyp classification (Adenoma patches) training example.
 """
 
 import argparse
@@ -35,11 +35,15 @@ import utils
 import pandas as pd
 import yaml
 import time
+from sklearn.metrics import confusion_matrix, balanced_accuracy_score, precision_recall_fscore_support
+
+MEM_CHOICES = ("low_mem", "mid_mem", "full_mem")
 
 def main(args):
 
     if args.wandb:
         import wandb
+        wandb.login()
 
     np.random.seed(args.seed)
     ecvl.AugmentationParam.SetSeed(args.seed)
@@ -47,7 +51,8 @@ def main(args):
     if args.checkpoints:
         os.makedirs(args.checkpoints, exist_ok=True)
 
-    num_classes = 6
+    #Adenoma classifier: Not_adenoma, Tubular adenoma, Tubulo-villous adenoma
+    num_classes = 3
     size = [args.input_size, args.input_size]  # size of the images
     
     # ECVL works in BGR
@@ -61,11 +66,13 @@ def main(args):
         net = eddl.Model([in_], [out])
         args.pretrain = 18
     elif args.pretrain == 50:
-        net, out = Resnet50_onnx(pretreined=True)
+        net, out = Resnet50_onnx(num_classes, pretreined=True)
     elif args.pretrain == 18:
-        net, out = Resnet18_onnx(pretreined=True)
+        net, out = Resnet18_onnx(num_classes, pretreined=True)
+    elif args.pretrain == 51:
+        net, out = Resnet50_onnx(num_classes, pretreined=False)
     else: 
-        net, out = Resnet50_onnx(pretreined=False)
+        net, out = Resnet18_onnx(num_classes, pretreined=False)
    
     if args.wandb:
         config = dict (
@@ -74,7 +81,7 @@ def main(args):
             batch_size = args.batch_size,
             weight_decay = args.weight_decay,
             architecture = "resnet{}".format(args.pretrain),
-            dataset_id = "annotated_800_224",
+            dataset_id = "unitopato_7000_224",
             infra = 'HPC4AI',
         )
 
@@ -82,7 +89,7 @@ def main(args):
            name=args.name,
            project="uc2-eddl",
            notes="uc2-eddl",
-           tags=["annotated","800","224"],
+           tags=["adenoma_classifier","unitopato","7000","224"],
            config=config,
         )
     
@@ -91,32 +98,31 @@ def main(args):
         eddl.sgd(args.lr, 0.99, weight_decay=args.weight_decay),
         ["soft_cross_entropy"],
         ["categorical_accuracy"],
-        eddl.CS_GPU(args.gpu) if args.gpu else eddl.CS_CPU(),
+        eddl.CS_GPU(args.gpu,1,mem=args.mem) if args.gpu else eddl.CS_CPU(),
         init_weights = args.pretrain == -1
     )
     currentlr = args.lr
     eddl.summary(net)
     eddl.setlogfile(net, "colorectal_polyp_classification")
 
-    # 1812 original resolution need progressive rescaling to avoid artifacts
+    # note: 1812 pixel original resolution need progressive rescaling to avoid artifacts
 
     training_augs = ecvl.SequentialAugmentationContainer([
-        #ecvl.AugResizeDim([906,906]), #uncomment if you train at original size
-        #ecvl.AugResizeDim([453,453]), #uncomment if you train at original size
-        ecvl.AugResizeDim(size),
+        #ecvl.AugResizeDim([906,906]), #uncomment if you train at original size (800 micron)
+        #ecvl.AugResizeDim([453,453]), #uncomment if you train at original size (800 micron)
+        #ecvl.AugResizeDim(size),
         ecvl.AugMirror(.5),
         ecvl.AugFlip(.5),
         ecvl.AugRotate([-90, 90]),
         ecvl.AugBrightness([30, 60]),
-        ecvl.AugGammaContrast([0.5, 1.5]),
-        ecvl.AugCoarseDropout([0.01, 0.05], [0.05, 0.15], 0.5),
+        ecvl.AugGammaContrast([0.5, 2]),
         ecvl.AugToFloat32(),
         ecvl.AugNormalize(mean, std)
     ])
     test_augs = ecvl.SequentialAugmentationContainer([
-        #ecvl.AugResizeDim([906,906]), #uncomment if you train at original size
-        #ecvl.AugResizeDim([453,453]), #uncomment if you train at original size
-        ecvl.AugResizeDim(size),
+        #ecvl.AugResizeDim([906,906]), #uncomment if you train at original size (800 micron)
+        #ecvl.AugResizeDim([453,453]), #uncomment if you train at original size (800 micron)
+        #ecvl.AugResizeDim(size),
         ecvl.AugToFloat32(),
         ecvl.AugNormalize(mean, std)
     ])
@@ -141,13 +147,14 @@ def main(args):
     print('Train samples:',num_samples_train)
 
     d.SetSplit(ecvl.SplitType.validation)
+    #d.SetSplit(ecvl.SplitType.test)
     num_samples_val = len(d.GetSplit())
     num_batches_val = num_samples_val // args.batch_size
     indices = list(range(args.batch_size))
     print('Validation samples:',num_samples_val)
     best_val = -1
 
-
+    # restore model
     if os.path.exists(args.ckpts):
         print('Restore model: ', args.ckpts)
         eddl.load(net, args.ckpts, "bin")
@@ -160,6 +167,7 @@ def main(args):
         eddl.reset_loss(net)
         d.SetSplit(ecvl.SplitType.training)
 
+        # dataset shuffling
         s = d.GetSplit()
         np.random.shuffle(s)
         d.split_.training_ = s
@@ -174,15 +182,13 @@ def main(args):
             ), end="", flush=True)
             
             d.LoadBatch(x, y)
-            #x.sub_(mean)
-            #x.div_(std)
+
             tx, ty = [x], [y]
             eddl.train_batch(net, tx, ty, indices)
-            # ! This .get_ return a batch mean
+            # These .get_* return a batch mean
             train_loss += eddl.get_losses(net)[0]
             train_acc  += eddl.get_metrics(net)[0]
 
-            eddl.print_loss(net, b)
             print()
             
         tttse = (time.time() - start_e_time)        
@@ -204,14 +210,12 @@ def main(args):
             eddl.set_mode(net, 0)
             eddl.reset_loss(net)
             d.SetSplit(ecvl.SplitType.validation)
-
-            s = d.GetSplit()
-            np.random.shuffle(s)
-            d.split_.validation_ = s
+            #d.SetSplit(ecvl.SplitType.test)
             d.ResetAllBatches()
 
             metric = eddl.getMetric("categorical_accuracy")
             error = eddl.getLoss("soft_cross_entropy")
+            np_out = None
             for b in range(num_batches_val):
 
                 print("Epoch {:d}/{:d} (batch {:d}/{:d}) - ".format(
@@ -219,26 +223,51 @@ def main(args):
                 ))
 
                 d.LoadBatch(x, y)
-                #x.sub_(mean)
-                #x.div_(std)
 
                 eddl.forward(net, [x])
                 output = eddl.getOutput(out)
-                # ! This .value return a sum
-                val_acc += metric.value(output, y)
-                val_loss += error.value(output, y)
-                
-                
-            val_loss = val_loss / (num_batches_val * args.batch_size)
-            val_acc  = val_acc / (num_batches_val * args.batch_size)
 
+                # These .value return a sum
+                val_acc += metric.value(y, output)
+                val_loss += error.value(y, output)
+
+                # output accumulation
+                if np_out is None:
+                   np_out = np.argmax(output.getdata(),axis=1)
+                   np_y = np.argmax(y.getdata(),axis=1)
+                else:
+                   np_out, np_y = np.concatenate((np_out, np.argmax(output.getdata(),axis=1)), axis=0),  np.concatenate((np_y, np.argmax(y.getdata(),axis=1)), axis=0)
+
+            
+            val_loss = val_loss / (num_batches_val * args.batch_size)
+
+            #save best model
             if best_val < val_acc:
                 best_val = val_acc
                 print("Saving weights")
                 eddl.save( net, os.path.join(args.checkpoints, "{}.cpc_epoch_{}_val_{:.2f}.bin".format(args.name,e+1,val_acc)), "bin" )
 
+            ba_score = balanced_accuracy_score(np_y,np_out)
+            val_acc  = ba_score
+
+            # compute score weights because of class unbalance in the test/validation set
+            scores = utils.comp_stats( confusion_matrix(np_y,np_out) )
+            weights = 1. / np.unique(np_y, return_counts=True)[1]
+            weights = [ w / weights.sum() for w in weights] 
+
+            acc_score = scores['ACC'].mean()
+            spec_score = (scores['TNR']*weights).mean()
+            precision_score, sens_score, f1_score, _ =  precision_recall_fscore_support(np_y,np_out,average='weighted', zero_division = 0 )
+
+            print("F1 Score:\t", f1_score)
+            print("Recall/Sensitivity Score:\t", sens_score)
+            print("Specificity Score:\t", spec_score)
+            print("Precision Score:\t", precision_score)
+            print("Balanced accuracy:\t", ba_score)
+            print("Categorical accuracy:\t", acc_score)
             print("---Validation Loss:\t%s ---" % val_loss)
             print("---Validation Accuracy:\t%s ---" % val_acc)
+
             if args.wandb:
                 run.log({"train_time_epoch": tttse, "train_loss": train_loss, "train_acc": train_acc, "val_loss": val_loss, "val_acc": val_acc })
         else:
@@ -252,18 +281,20 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("in_ds", help = 'path to the dataset',metavar="INPUT_DATASET")
-    parser.add_argument("--epochs", help='number of training epochs', type=int, metavar="INT", default=300)
-    parser.add_argument("--batch-size", help='batch-size', type=int, metavar="INT", default=128)
+    parser.add_argument("--epochs", help='number of training epochs', type=int, metavar="INT", default=50)
+    parser.add_argument("--batch-size", help='batch-size', type=int, metavar="INT", default=32)
     parser.add_argument("--lr", help='learning rate' ,type=float, default=0.0001)
-    parser.add_argument("--weight-decay", help='weight-decay' ,type=float, default=0.0005)
+    parser.add_argument("--weight-decay", help='weight-decay' ,type=float, default=5e-4)
     parser.add_argument("--val_epochs", help='validation set inference each (default=1) epochs', type=int, metavar="INT", default=1)
     parser.add_argument('--gpu', nargs='+', type=int, required=False, help='`--gpu 1 1` to use two GPUs')
     parser.add_argument("--checkpoints", metavar="DIR", default='checkpoints', help="if set, save checkpoints in this directory")
     parser.add_argument("--name", help='run name', type=str,  default='uc2_train')
     parser.add_argument("--pretrain", help='use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)', type=int,  default=18)
-    parser.add_argument("--input-size", type=int, help='224 px or original size (1812 at 800um)', default=224)
+    parser.add_argument("--input-size", type=int, help='224 px or original size', default=224)
     parser.add_argument("--seed", help='training seed', type=int, default=1990)
-    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-800_224_balanced.yml )', type=str, default='deephealth-uc2-800_224_balanced.yml')
+    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_balanced_adenoma.yml')
     parser.add_argument("--ckpts", help='resume trining from a checkpoint', metavar='RESUME_PATH', default='')
-    parser.add_argument('--wandb', action='store_true', help='enable wandb logs', default=False)
+    parser.add_argument("--mem", metavar="|".join(MEM_CHOICES), choices=MEM_CHOICES, default="full_mem")
+    parser.add_argument('--wandb', action='store_true', help='enable wandb logs', default=True)
     main(parser.parse_args())
+

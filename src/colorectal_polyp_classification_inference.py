@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 """\
-colorectal polyp classification inference example.
+colorectal polyp classification (Adenoma patches) inference example.
 """
 
 import argparse
@@ -33,11 +33,11 @@ from pyeddl.tensor import Tensor
 from models import resnet18, Resnet18_onnx, Resnet50_onnx
 import time
 import utils
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, balanced_accuracy_score, precision_recall_fscore_support
 import time
 
 def main(args):
-    num_classes = 6
+    num_classes = 3
     size = [args.input_size, args.input_size]  # size of images
     
     # ECVL works in BGR
@@ -49,12 +49,15 @@ def main(args):
     if args.pretrain == -1:
         out = resnet18(in_, num_classes)
         net = eddl.Model([in_], [out])
+        args.pretrain = 18
     elif args.pretrain == 50:
-        net, out = Resnet50_onnx(pretreined=True)
+        net, out = Resnet50_onnx(num_classes, pretreined=True)
     elif args.pretrain == 18:
-        net, out = Resnet18_onnx(pretreined=True)
+        net, out = Resnet18_onnx(num_classes, pretreined=True)
+    elif args.pretrain == 51:
+        net, out = Resnet50_onnx(num_classes, pretreined=False)
     else: 
-        net, out = Resnet50_onnx(pretreined=False)
+        net, out = Resnet18_onnx(num_classes, pretreined=False)
 
     eddl.build(
         net,
@@ -73,7 +76,7 @@ def main(args):
     ])
     dataset_augs = ecvl.DatasetAugmentations([None, None, test_augs])
 
-    #already contains proper test set
+    # already contains proper test set
     print("Reading dataset")
     ds_file = os.path.join(args.in_ds,args.yml_name)
     if not os.path.isfile(ds_file):
@@ -92,6 +95,7 @@ def main(args):
     num_batches = num_samples // args.batch_size
     eddl.set_mode(net, 0)
 
+    #load checkpoint
     if not os.path.exists(args.ckpts):
         raise RuntimeError('Checkpoint "{}" not found'.format(args.ckpts))
     eddl.load(net, args.ckpts, "bin")
@@ -106,19 +110,24 @@ def main(args):
         eddl.forward(net, [x])
         output = eddl.getOutput(out)
 
+        # output accumulation
         if np_out is None:
             np_out = np.argmax(output.getdata(),axis=1)
             np_y = np.argmax(y.getdata(),axis=1)
         else:
             np_out, np_y = np.concatenate((np_out, np.argmax(output.getdata(),axis=1)), axis=0),  np.concatenate((np_y, np.argmax(y.getdata(),axis=1)), axis=0)
 
+    ba_score = balanced_accuracy_score(np_y,np_out)
+    val_acc  = ba_score
+
+    # compute score weights because of class unbalance in the test/validation set
     scores = utils.comp_stats( confusion_matrix(np_y,np_out) )
+    weights = 1. / np.unique(np_y, return_counts=True)[1]
+    weights = [ w / weights.sum() for w in weights] 
+
     acc_score = scores['ACC'].mean()
-    ba_score = scores['BA'].mean()
-    f1_score = scores['F1'].mean()
-    sens_score = scores['TPR'].mean()
-    spec_score = scores['TNR'].mean()
-    precision_score = scores['PPV'].mean()
+    spec_score = (scores['TNR']*weights).mean()
+    precision_score, sens_score, f1_score, _ =  precision_recall_fscore_support(np_y,np_out,average='weighted', zero_division = 0 )
 
     print("F1 Score:\t", f1_score)
     print("Recall/Sensitivity Score:\t", sens_score)
@@ -133,10 +142,10 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("in_ds", help = 'path to the dataset', metavar="INPUT_DATASET")
-    parser.add_argument("--ckpts", help='checkpoint path', metavar='CHECKPOINTS_PATH', default='checkpoints/cpc_classification_checkpoint_epoch_4.bin')
+    parser.add_argument("--ckpts", help='checkpoint path', metavar='CHECKPOINTS_PATH', default='checkpoints/mymodel.bin')
     parser.add_argument("--batch-size", help='batch-size', type=int, metavar="INT", default=218)
     parser.add_argument('--gpu', nargs='+', type=int, required=False, help='`--gpu 1 1` to use two GPUs')
     parser.add_argument("--pretrain", help='use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)', type=int,  default=18)
-    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-800_224_balanced.yml )', type=str, default='deephealth-uc2-800_224_balanced.yml')
-    parser.add_argument("--input-size", type=int, help='224 px or original size (1812 at 800um)', default=224)
+    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_balanced_adenoma.yml')
+    parser.add_argument("--input-size", type=int, help='224 px or original size', default=224)
     main(parser.parse_args())

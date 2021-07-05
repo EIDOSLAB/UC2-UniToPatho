@@ -5,6 +5,7 @@ from cropify_core_ecvl import is_histopath
 import pandas as pd
 from pyeddl.tensor import Tensor, DEV_CPU
 from tqdm import tqdm
+import cv2
 
 IMG_EXT = 'png' 
 SLIDE_RES = 0.4415
@@ -177,59 +178,77 @@ def comp_stats(confusion_matrix):
 
     # Sensitivity, hit rate, recall, or true positive rate
     TPR = TP/(TP+FN)
+    TPR[np.isinf(TPR)] = 0
+    TPR[np.isnan(TPR)] = 0
     # Specificity or true negative rate
     TNR = TN/(TN+FP)
+    TNR[np.isinf(TNR)] = 0
+    TNR[np.isnan(TNR)] = 0
     # Precision or positive predictive value
     PPV = TP/(TP+FP)
+    PPV[np.isinf(PPV)] = 0
+    PPV[np.isnan(PPV)] = 0
     # Negative predictive value
     NPV = TN/(TN+FN)
+    NPV[np.isinf(NPV)] = 0
+    NPV[np.isnan(NPV)] = 0
     # Fall out or false positive rate
     FPR = FP/(FP+TN)
+    FPR[np.isinf(FPR)] = 0
+    FPR[np.isnan(FPR)] = 0
     # False negative rate
     FNR = FN/(TP+FN)
+    FNR[np.isinf(FNR)] = 0
+    FNR[np.isnan(FNR)] = 0
     # False discovery rate
     FDR = FP/(TP+FP)
+    FDR[np.isinf(FDR)] = 0
+    FDR[np.isnan(FDR)] = 0
 
     # Overall accuracy
     ACC = (TP+TN)/(TP+FP+FN+TN)
+    ACC[np.isinf(ACC)] = 0
+    ACC[np.isnan(ACC)] = 0
+
     BA = (TPR + TNR )/2
+    BA[np.isinf(BA)] = 0
+    BA[np.isnan(BA)] = 0
+
     F1 = ( 2 * TP )/(2 * TP + FP +FN)
+    F1[np.isinf(F1)] = 0
+    F1[np.isnan(F1)] = 0
     
     ret.update({'FP':FP})
     ret.update({'FN':FN})
     ret.update({'TP':TP})
     ret.update({'TN':TN})
-    TPR[np.isinf(TPR)] = 0
-    TPR[np.isnan(TPR)] = 0
     ret.update({'TPR':TPR})
-    TNR[np.isinf(TNR)] = 0
-    TNR[np.isnan(TNR)] = 0
     ret.update({'TNR':TNR})
-    PPV[np.isinf(PPV)] = 0
-    PPV[np.isnan(PPV)] = 0
     ret.update({'PPV':PPV})
-    NPV[np.isinf(NPV)] = 0
-    NPV[np.isnan(NPV)] = 0
     ret.update({'NPV':NPV})
-    FPR[np.isinf(FPR)] = 0
-    FPR[np.isnan(FPR)] = 0
     ret.update({'FPR':FPR})
-    FNR[np.isinf(FNR)] = 0
-    FNR[np.isnan(FNR)] = 0
     ret.update({'FNR':FNR})
-    FDR[np.isinf(FDR)] = 0
-    FDR[np.isnan(FDR)] = 0
     ret.update({'FDR':FDR})
-    ACC[np.isinf(ACC)] = 0
-    ACC[np.isnan(ACC)] = 0
     ret.update({'ACC':ACC})
-    BA[np.isinf(BA)] = 0
-    BA[np.isnan(BA)] = 0
     ret.update({'BA':BA})
-    F1[np.isinf(F1)] = 0
-    F1[np.isnan(F1)] = 0
     ret.update({'F1':F1})
 
     return ret
+
+def standardize(I, percentile=95):
+    """
+    Transform image I to standard brightness.
+    Modifies the luminosity channel such that a fixed percentile is saturated.
+    :param I: Image uint8 BGR.
+    :param percentile: Percentile for luminosity saturation. At least (100 - percentile)% of pixels should be fully luminous (white).
+    :return: Image uint8 BGR with standardized brightness.
+    """
+    assert is_uint8_image(I), "Image should be BGR uint8."
+    I_LAB = cv2.cvtColor(I, cv2.COLOR_BGR2LAB)
+    L_float = I_LAB[:, :, 0].astype(float)
+    p = np.percentile(L_float, percentile)
+    I_LAB[:, :, 0] = np.clip(255 * L_float / p, 0, 255).astype(np.uint8)
+    I = cv2.cvtColor(I_LAB, cv2.COLOR_LAB2BGR)
+    return I
 
 

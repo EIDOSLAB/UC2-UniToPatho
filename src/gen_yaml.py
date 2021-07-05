@@ -97,7 +97,7 @@ def gen_df(basepath):
     return df
 
 
-def df_to_DH_yaml(df, name, splits):
+def df_to_DH_yaml(df, name, splits, target_name = 'top_label_name'):
     data = dict(
         name='',
         description='UC2 is an annotated dataset for a total of hematoxylin and eosin stained patches extracted from whole-slide images, meant for training deep neural networks for colorectal polyps classification and adenomas grading. The slides are acquired through a Hamamatsu Nanozoomer S210 scanner at 20x magnification (0.4415 um/px). Each slide belongs to a different patient and is annotated by expert pathologists, according to six classes as follows:\nNORM - Normal tissue;\nHP - Hyperplastic Polyp;\nTA.HG - Tubular Adenoma, High-Grade dysplasia;\nTA.LG - Tubular Adenoma, Low-Grade dysplasia;\nTVA.HG - Tubulo-Villous Adenoma, High-Grade dysplasia;\nTVA.LG - Tubulo-Villous Adenoma, Low-Grade dysplasia.\nHere, We provide a yaml description in according with the DeepHealth Toolkit Dataset format for each um/px resolution.',
@@ -106,11 +106,11 @@ def df_to_DH_yaml(df, name, splits):
         split = []
     )
     data['name'] = name
-    data['classes']= sorted(df['top_label_name'].unique())
+    data['classes']= sorted(df[target_name].unique())
 
     data['split'] = splits
 
-    df = df[['path','top_label_name']]
+    df = df[['path',target_name]]
     data['images'] = [ { 'location': t[0], 'label':t[1] } for t in df.loc[range(len(df))].values ] 
 
     return data
@@ -124,7 +124,9 @@ if __name__ == '__main__':
     parser.add_argument('--val_set', action='store_true', help='create validation set', default=False)
     parser.add_argument('--gen_800_224', action='store_true', help='create a 224px version of 800micrometer dataset', default=False)
     parser.add_argument('--seed', help='seed for data balancing', type=int, default=42)
-    parser.add_argument('--bal_idx', type=int, help='less represented class for dataset balancing (default 3 => 4th)', default=3)
+    parser.add_argument('--gen_HG_LG', action='store_true', help='create yml for hg lg only, 2 classes, for 800', default=False)
+    parser.add_argument('--gen_adenoma', action='store_true', help='create yml for adenoma type only, 3 classes, for 7000', default=False)
+    parser.add_argument('--bal_idx', type=int, help='less represented class index for dataset balancing (default 3)', default=3)
 
     args = parser.parse_args()
     list_dir = [os.path.join(args.folder, f) for f in os.listdir(args.folder) if os.path.isdir(os.path.join(args.folder, f)) ]
@@ -139,6 +141,7 @@ if __name__ == '__main__':
         folder_name = basepath.split('/')[-1]
 
         if args.gen_800_224 and '800_224' in basepath and not os.path.isdir(basepath):
+            print('Create 800_224 folder')
             basepath_800 = basepath.replace('800_224','800')
             df = gen_df(basepath_800)
             gen_res_folder(df,basepath_800,basepath,224)
@@ -146,7 +149,30 @@ if __name__ == '__main__':
             df = gen_df(basepath)
 
         print(f'=> Got {len(df)} images')
-        
+        if len(df) == 0:
+            continue
+     
+        target_name = 'top_label_name'
+        suffix = ''
+        bal_idx = args.bal_idx
+        if args.gen_HG_LG and ('800' == folder_name or '800_224' == folder_name):
+            print('Create LG/HG yaml for 800 folder')
+            df = df.loc[df['grade'].isin([0,1])].reset_index(drop=True)
+            bal_idx = 0
+            target_name = 'grade_name'
+            suffix = '_grade'
+
+        if args.gen_adenoma and ('7000' == folder_name or '7000_224' == folder_name):
+            print('Create Adenoma Type yaml for 7000 folder')
+            df['type'] = np.where(df['type']==1,0,df['type'])
+            df['type'] = np.where(df['type']==2,1,df['type'])
+            df['type'] = np.where(df['type']==3,2,df['type'])
+            df['type_name'] = np.where(df['type_name'].isin(['HP','NORM']),'NOT_ADN',df['type_name'])
+            #df = df.loc[df['grade'].isin([0,1])].reset_index(drop=True)
+            bal_idx = 1
+            target_name = 'type_name'
+            suffix = '_adenoma'
+       
         train_idx,val_idx,test_idx = [], [],[]
 
         ## Given testlist
@@ -174,11 +200,13 @@ if __name__ == '__main__':
             train_idx = train_df.index.tolist()
             train_df['yml_idx'] = train_df.index.tolist()
             train_df.to_csv(os.path.join(basepath, 'train.csv'), index=False)
+            print('Train Images',len(train_idx))
             if len(test_idx) == 0:
               test_df = df[~df.wsi.isin(train_wsi)].copy()
               test_df['yml_idx'] = test_df.index.tolist()
               test_df.to_csv(os.path.join(basepath, 'test.csv'), index=False)
               test_idx = test_df.index.tolist()
+              print('Test Images',len(test_idx))
                 
         df.to_csv(os.path.join(basepath, folder_name + '.csv'), index=False)
 
@@ -190,7 +218,11 @@ if __name__ == '__main__':
           train_df = df.iloc[train_idx]
           test_df = df.iloc[test_idx]
           train_idx,test_idx = train_df.index.tolist(),test_df.index.tolist()
-
+          train_df.to_csv(os.path.join(basepath, 'train.csv'), index=False)
+          test_df.to_csv(os.path.join(basepath, 'test.csv'), index=False)
+          print('Test Images',len(test_idx))
+          print('Train Images',len(train_idx))
+        
         
         ## generate validation set
         if args.val_set:
@@ -204,8 +236,8 @@ if __name__ == '__main__':
 
         splits = dict(training = train_idx, validation = val_idx, test = test_idx)
 
-        yml_name = 'deephealth-uc2-'+folder_name
-        yaml_dict = df_to_DH_yaml(df, yml_name , splits) 
+        yml_name = 'deephealth-uc2-'+folder_name+suffix
+        yaml_dict = df_to_DH_yaml(df, yml_name , splits, target_name) 
         
 
         with open( os.path.join(basepath, yml_name + '.yml'), 'w') as f:
@@ -218,15 +250,15 @@ if __name__ == '__main__':
         if args.balance:
           train_df.index.names = ['index_orig']
           train_df = train_df.reset_index()
-          min_size = np.sort(train_df.groupby('top_label').count()['image_id'])[args.bal_idx]
-          train_df = train_df.groupby('top_label').apply(lambda group: group.sample(min_size, replace=len(group) < min_size, random_state=args.seed)).reset_index(drop=True)
+          min_size = np.sort(train_df.groupby(target_name).count()['image_id'])[bal_idx]
+          train_df = train_df.groupby(target_name).apply(lambda group: group.sample(min_size, replace=len(group) < min_size, random_state=args.seed)).reset_index(drop=True)
           train_idx = train_df['index_orig'].values.tolist()
 
           print('Train Images (balanced)',len(train_idx))
           splits = dict(training = train_idx, validation = val_idx, test = test_idx)
 
-          yml_name = 'deephealth-uc2-'+folder_name+'_balanced'
-          yaml_dict = df_to_DH_yaml(df, yml_name , splits)
+          yml_name = 'deephealth-uc2-'+folder_name+'_balanced'+suffix
+          yaml_dict = df_to_DH_yaml(df, yml_name , splits, target_name)
 
           with open( os.path.join(basepath, yml_name + '.yml'), 'w') as f:
             yaml.safe_dump(yaml_dict, f, default_flow_style=False)
