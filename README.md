@@ -2,6 +2,9 @@
 
 ##### This repository contains the source code for getting started on [UniToPatho](https://ieee-dataport.org/open-access/unitopatho) dataset by using [pyEDDL](https://github.com/deephealthproject/pyeddl)/[pyECVL](https://github.com/deephealthproject/pyecvl)
 
+##### KPI measurements
+Preliminary KPI measurements are availabe at https://wandb.opendeephealth.di.unito.it/eidoslab/uc2-eddl/reports/DeepHealth-UC2--VmlldzoxNA?accessToken=gb26jguu33kr0pw1qvmee8pexg6z44aa1s7cj02cwqcdt6wv6mvy9lq6ahp9kquc
+
 ## Getting Ready
 
 ##### Step 1: Install dependencies
