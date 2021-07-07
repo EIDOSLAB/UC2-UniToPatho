@@ -23,7 +23,7 @@ This script will generate all files needed in the [DeepHealth Toolkit Dataset Fo
 
 Example:
 
-`python3 gen_yaml.py --folder <dataset_path>/unitopath-public/ --val_set --balanced --gen_adenoma
+`python3 gen_yaml.py --folder <dataset_path>/unitopath-public/ --val_set --balanced --gen_adenoma`
 
 ```
 usage: gen_yaml.py [-h] --folder FOLDER [--trainlist TRAINLIST]
@@ -103,7 +103,7 @@ optional arguments:
 
 Example:
 
-`python3 -u colorectal_polyp_classification_training.py --gpu 1 --name 'my_first_run' --pretrain 18 <dataset_path>/unitopath-public/800_224`
+`python3 -u colorectal_polyp_classification_training.py --gpu 1 --name 'my_first_run' --pretrain 18 <dataset_path>/unitopath-public/7000_224`
 
 ```
 usage: colorectal_polyp_classification_training.py [-h] [--epochs INT]
@@ -150,7 +150,7 @@ optional arguments:
 
 Example:
 
-`python3 -u colorectal_polyp_classification_inference.py --gpu 1 --ckpts checkpoints/<checkpoint_name>.bin --pretrain 18 <dataset_path>/unitopath-public/800_224`
+`python3 -u colorectal_polyp_classification_inference.py --gpu 1 --ckpts checkpoints/<checkpoint_name>.bin --pretrain 18 <dataset_path>/unitopath-public/7000_224`
 
 ```
 usage: colorectal_polyp_classification_inference.py [-h]
