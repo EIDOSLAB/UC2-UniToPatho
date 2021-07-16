@@ -43,6 +43,8 @@ import wandb
 HP, NORM, TAHG, TALG, TVAHG, TVALG = 0, 1, 2, 3, 4, 5
 NOT_ADEN, TA, TVA = 0, 2, 3
 
+MEM_CHOICES = ("low_mem", "mid_mem", "full_mem")
+
 def main(args):
 
     if args.wandb:
@@ -112,7 +114,7 @@ def main(args):
         net, out = models.load_onnx_models(f'adenoma_classifier.3c.{classifier_idx}')
         eddl.build(
             net, eddl.sgd(0.001, 0.9),["soft_cross_entropy"], ["categorical_accuracy"],
-            eddl.CS_GPU(args.gpu,"low_mem") if args.gpu else eddl.CS_CPU(), init_weights=False
+            eddl.CS_GPU(args.gpu,args.lsb,mem=args.mem) if args.gpu else eddl.CS_CPU(), init_weights=False
         )
         # Normalization done manually on the Tensor
         adenoma_mean = Tensor.fromarray(np.full((args.batch_size, d.n_channels_, size[0], size[1]), adenoma_mean), dev=net.dev)
@@ -198,7 +200,7 @@ def main(args):
         net, out = models.load_onnx_models(f'grade_classifier.800.{classifier_idx}')
         eddl.build(
             net, eddl.sgd(0.001, 0.9),["soft_cross_entropy"], ["categorical_accuracy"],
-            eddl.CS_GPU(args.gp,"low_mem") if args.gpu else eddl.CS_CPU(), init_weights=False
+            eddl.CS_GPU(args.gpu,args.lsb,mem=args.mem) if args.gpu else eddl.CS_CPU(), init_weights=False
         )
         eddl.set_mode(net, 0)
 
@@ -282,7 +284,7 @@ def main(args):
         net, out = models.load_onnx_models(f'hp_classifier.800.{classifier_idx}')
         eddl.build(
             net, eddl.sgd(0.001, 0.9),["soft_cross_entropy"], ["categorical_accuracy"],
-            eddl.CS_GPU(args.gpu,"low_mem") if args.gpu else eddl.CS_CPU(), init_weights=False
+            eddl.CS_GPU(args.gpu,args.lsb,mem=args.mem) if args.gpu else eddl.CS_CPU(), init_weights=False
         )
         eddl.set_mode(net, 0)
         # Normalization done manually on the Tensor
@@ -335,4 +337,6 @@ if __name__ == "__main__":
     parser.add_argument("--temp_folder", help="temporary folder for inference speedup (slow down the first run, high storage demand )", default='')
     parser.add_argument('--wandb', action='store_true', help='enable wandb logs', default=True)
     parser.add_argument("--name", help='run name', type=str,  default='icip_inference_eddl')
+    parser.add_argument("--mem", metavar="|".join(MEM_CHOICES), choices=MEM_CHOICES, default="full_mem")
+    parser.add_argument("--lsb", help='multi-gpu update frequency', type=int, metavar="INT", default=1)
     main(parser.parse_args())

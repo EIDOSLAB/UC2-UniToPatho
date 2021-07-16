@@ -98,7 +98,7 @@ def main(args):
         eddl.sgd(args.lr, 0.99, weight_decay=args.weight_decay),
         ["soft_cross_entropy"],
         ["categorical_accuracy"],
-        eddl.CS_GPU(args.gpu,1,mem=args.mem) if args.gpu else eddl.CS_CPU(),
+        eddl.CS_GPU(args.gpu,args.lsb,mem=args.mem) if args.gpu else eddl.CS_CPU(),
         init_weights = args.pretrain == -1
     )
     currentlr = args.lr
@@ -295,6 +295,7 @@ if __name__ == "__main__":
     parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_balanced_adenoma.yml')
     parser.add_argument("--ckpts", help='resume trining from a checkpoint', metavar='RESUME_PATH', default='')
     parser.add_argument("--mem", metavar="|".join(MEM_CHOICES), choices=MEM_CHOICES, default="full_mem")
+    parser.add_argument("--lsb", help='multi-gpu update frequency', type=int, metavar="INT", default=1)
     parser.add_argument('--wandb', action='store_true', help='enable wandb logs', default=True)
     main(parser.parse_args())
 

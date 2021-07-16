@@ -36,6 +36,8 @@ import utils
 from sklearn.metrics import confusion_matrix, balanced_accuracy_score, precision_recall_fscore_support
 import time
 
+MEM_CHOICES = ("low_mem", "mid_mem", "full_mem")
+
 def main(args):
     num_classes = 3
     size = [args.input_size, args.input_size]  # size of images
@@ -64,7 +66,7 @@ def main(args):
         eddl.sgd(0.001, 0.9),
         ["soft_cross_entropy"],
         ["categorical_accuracy"],
-        eddl.CS_GPU(args.gpu) if args.gpu else eddl.CS_CPU(),
+        eddl.CS_GPU(args.gpu,args.lsb,mem=args.mem) if args.gpu else eddl.CS_CPU(),
         init_weights = args.pretrain == -1
     )
     eddl.summary(net)
@@ -148,4 +150,6 @@ if __name__ == "__main__":
     parser.add_argument("--pretrain", help='use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)', type=int,  default=18)
     parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_balanced_adenoma.yml')
     parser.add_argument("--input-size", type=int, help='224 px or original size', default=224)
+    parser.add_argument("--mem", metavar="|".join(MEM_CHOICES), choices=MEM_CHOICES, default="full_mem")
+    parser.add_argument("--lsb", help='multi-gpu update frequency', type=int, metavar="INT", default=1)
     main(parser.parse_args())
