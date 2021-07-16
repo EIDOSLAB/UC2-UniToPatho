@@ -54,7 +54,10 @@ It will generate 3 different `.csv` files by follwing the inference pipeline in 
 
 Example:
 
-`python3 -u Unitopatho_ensemble_inference.py <dataset_path>/unitopath-public/ --gpu 1 --temp_folder ''`
+```
+python3 gen_yaml.py --folder <dataset_path>/unitopath-public/
+python3 -u Unitopatho_ensemble_inference.py <dataset_path>/unitopath-public/ --gpu 1 --temp_folder ''
+```
 
 ```
 usage: Unitopatho_ensemble_inference.py [-h] [--batch-size INT]
@@ -74,6 +77,8 @@ optional arguments:
   --fullres-batch-size  batch-size for full resolution images
   --gpu GPU [GPU ...]   `--gpu 1 1` to use two GPUs
   --temp_folder         temporary folder for inference speedup (slow down the first run, high storage demand ), default none
+  --lsb                 multi-gpu update frequency, default 1
+  --mem                 allows full_mem, mid_mem, low_mem
 ```
 
 ##### Step 2: Run Inference script `Unitopatho_ensemble_results.py`
@@ -143,6 +148,7 @@ optional arguments:
   --yml-name YML_NAME   yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )
   --ckpts RESUME_PATH   resume trining from a checkpoint
   --wandb               enable wandb logs
+  --lsb                 multi-gpu update frequency, default 1
   --mem                 allows full_mem, mid_mem, low_mem
 ```
 
@@ -175,6 +181,8 @@ optional arguments:
   --pretrain PRETRAIN   use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)
   --yml-name YML_NAME   yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )
   --input-size          224 px or original size 
+  --lsb                 multi-gpu update frequency, default 1
+  --mem                 allows full_mem, mid_mem, low_mem
 ```
 
 ## Generate your own dataset from `.ndpi` Whole Slides and `.ndpa` annotation files
