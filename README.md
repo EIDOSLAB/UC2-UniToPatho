@@ -23,7 +23,7 @@ This script will generate all files needed in the [DeepHealth Toolkit Dataset Fo
 
 Example:
 
-`python3 gen_yaml.py --folder <dataset_path>/unitopath-public/ --val_set --balanced --gen_adenoma`
+`python3 gen_yaml.py --folder <dataset_path>/unitopath-public/ --val_set --balance --gen_adenoma`
 
 ```
 usage: gen_yaml.py [-h] --folder FOLDER [--trainlist TRAINLIST]
