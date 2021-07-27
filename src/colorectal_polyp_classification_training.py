@@ -292,10 +292,10 @@ if __name__ == "__main__":
     parser.add_argument("--pretrain", help='use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)', type=int,  default=18)
     parser.add_argument("--input-size", type=int, help='224 px or original size', default=224)
     parser.add_argument("--seed", help='training seed', type=int, default=1990)
-    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_balanced_adenoma.yml')
+    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_224_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_224_balanced_adenoma.yml')
     parser.add_argument("--ckpts", help='resume trining from a checkpoint', metavar='RESUME_PATH', default='')
     parser.add_argument("--mem", metavar="|".join(MEM_CHOICES), choices=MEM_CHOICES, default="full_mem")
     parser.add_argument("--lsb", help='multi-gpu update frequency', type=int, metavar="INT", default=1)
-    parser.add_argument('--wandb', action='store_true', help='enable wandb logs', default=True)
+    parser.add_argument('--wandb', action='store_true', help='enable wandb logs', default=False)
     main(parser.parse_args())
 
