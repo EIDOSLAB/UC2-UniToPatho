@@ -145,7 +145,7 @@ optional arguments:
   --pretrain PRETRAIN   use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)
   --input-size          224 px or original size 
   --seed SEED           training seed
-  --yml-name YML_NAME   yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )
+  --yml-name YML_NAME   yml name (default=deephealth-uc2-7000_224_balanced_adenoma.yml )
   --ckpts RESUME_PATH   resume trining from a checkpoint
   --wandb               enable wandb logs
   --lsb                 multi-gpu update frequency, default 1
@@ -179,7 +179,7 @@ optional arguments:
   --batch-size INT      batch-size
   --gpu GPU [GPU ...]   `--gpu 1 1` to use two GPUs
   --pretrain PRETRAIN   use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)
-  --yml-name YML_NAME   yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )
+  --yml-name YML_NAME   yml name (default=deephealth-uc2-7000_224_balanced_adenoma.yml )
   --input-size          224 px or original size 
   --lsb                 multi-gpu update frequency, default 1
   --mem                 allows full_mem, mid_mem, low_mem
