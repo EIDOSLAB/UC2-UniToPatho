@@ -148,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", help='batch-size', type=int, metavar="INT", default=218)
     parser.add_argument('--gpu', nargs='+', type=int, required=False, help='`--gpu 1 1` to use two GPUs')
     parser.add_argument("--pretrain", help='use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)', type=int,  default=18)
-    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_balanced_adenoma.yml')
+    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_224_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_224_balanced_adenoma.yml')
     parser.add_argument("--input-size", type=int, help='224 px or original size', default=224)
     parser.add_argument("--mem", metavar="|".join(MEM_CHOICES), choices=MEM_CHOICES, default="full_mem")
     parser.add_argument("--lsb", help='multi-gpu update frequency', type=int, metavar="INT", default=1)
