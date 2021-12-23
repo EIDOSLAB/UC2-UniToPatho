@@ -1,4 +1,4 @@
-FROM dhealth/pylibs-toolkit:0.10.1-cudnn
+FROM dhealth/pylibs-toolkit:0.12.2-cudnn
 RUN apt-get update
 RUN apt-get install -y iputils-ping iproute2 git tmux virtualenv wget vim curl
 RUN pip3 install meson==0.53.2 ninja
