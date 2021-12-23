@@ -20,6 +20,7 @@
 
 """\
 colorectal polyp classification (Adenoma patches) training example.
+base: dhelth/pylibs-toolkit 0.12.2
 """
 
 import argparse
@@ -81,7 +82,7 @@ def main(args):
             batch_size = args.batch_size,
             weight_decay = args.weight_decay,
             architecture = "resnet{}".format(args.pretrain),
-            dataset_id = "unitopato_7000_224",
+            dataset_id = "unitopatho_7000_224",
             infra = 'HPC4AI',
         )
 
@@ -89,13 +90,13 @@ def main(args):
            name=args.name,
            project="uc2-eddl",
            notes="uc2-eddl",
-           tags=["adenoma_classifier","unitopato","7000","224"],
+           tags=["adenoma_classifier","unitopatho","7000","224"],
            config=config,
         )
-    
+        
     eddl.build(
         net,
-        eddl.sgd(args.lr, 0.99, weight_decay=args.weight_decay),
+        eddl.sgd(args.lr, args.momentum, weight_decay=args.weight_decay),
         ["soft_cross_entropy"],
         ["categorical_accuracy"],
         eddl.CS_GPU(args.gpu,args.lsb,mem=args.mem) if args.gpu else eddl.CS_CPU(),
@@ -126,9 +127,6 @@ def main(args):
         ecvl.AugToFloat32(),
         ecvl.AugNormalize(mean, std)
     ])
-    dataset_augs = ecvl.DatasetAugmentations(
-        [training_augs, test_augs, test_augs]
-    )
 
     print("Reading dataset")  
 
@@ -137,20 +135,34 @@ def main(args):
         raise Exception('missing Dataset yaml file {}'.format(ds_file))
         exit()
 
-    d = ecvl.DLDataset(ds_file, args.batch_size, dataset_augs)
+    # Dataloader arguments [training,validation,test] 
+    augs = [training_augs,test_augs,test_augs]
+    drop_last = [True,False,False]
+
+    # this yml describes splits in [test,training,validation] order
+    yml_order = [2,0,1]
+    augs = [augs[i] for i in yml_order]
+    drop_last = [drop_last[i] for i in yml_order]
+
+    dataset_augs = ecvl.DatasetAugmentations(augs)
+    d = ecvl.DLDataset(ds_file, args.batch_size, dataset_augs, drop_last = drop_last , num_workers = len(args.gpu) , queue_ratio_size = 4*len(args.gpu) )
 
     print('Classes: ',d.classes_)
-    x = Tensor([args.batch_size, d.n_channels_, size[0], size[1]])
-    y = Tensor([args.batch_size, len(d.classes_)])
-    num_samples_train = len(d.GetSplit())
-    num_batches_train = num_samples_train // args.batch_size
-    print('Train samples:',num_samples_train)
 
-    d.SetSplit(ecvl.SplitType.validation)
-    #d.SetSplit(ecvl.SplitType.test)
+    d.SetSplit(ecvl.SplitType.training)
+
+    num_samples_train = len(d.GetSplit())
+    num_batches_train = d.GetNumBatches(ecvl.SplitType.training)
+
+    print('Train samples:',num_samples_train)
+    print('Train batches:',num_batches_train)
+
+    #d.SetSplit(ecvl.SplitType.validation)
+    d.SetSplit(ecvl.SplitType.test)
     num_samples_val = len(d.GetSplit())
-    num_batches_val = num_samples_val // args.batch_size
-    indices = list(range(args.batch_size))
+
+    num_batches_val = d.GetNumBatches()
+
     print('Validation samples:',num_samples_val)
     best_val = -1
 
@@ -167,12 +179,10 @@ def main(args):
         eddl.reset_loss(net)
         d.SetSplit(ecvl.SplitType.training)
 
-        # dataset shuffling
-        s = d.GetSplit()
-        np.random.shuffle(s)
-        d.split_.training_ = s
-        d.ResetAllBatches()
-
+        # dataset shuffling        
+        d.ResetAllBatches(shuffle=True)
+        
+        d.Start()
         train_loss, train_acc = 0.0 , 0.0
 
         start_e_time = time.time()
@@ -181,16 +191,17 @@ def main(args):
                 e + 1, args.epochs, b + 1, num_batches_train
             ), end="", flush=True)
             
-            d.LoadBatch(x, y)
+            _,x,y = d.GetBatch()
 
             tx, ty = [x], [y]
-            eddl.train_batch(net, tx, ty, indices)
-            # These .get_* return a batch mean
+            eddl.train_batch(net, tx, ty)
+            # These .get_* methods return a batch mean
             train_loss += eddl.get_losses(net)[0]
             train_acc  += eddl.get_metrics(net)[0]
 
             print()
             
+        d.Stop()
         tttse = (time.time() - start_e_time)        
         train_loss = train_loss / num_batches_train
         train_acc  = train_acc / num_batches_train
@@ -201,7 +212,7 @@ def main(args):
         # Scheduler
         #if (e+1) % 100 == 0:
         #    currentlr *= 0.1
-        #    eddl.setlr(net, [currentlr, 0.99, args.weight_decay])
+        #    eddl.setlr(net, [currentlr, args.momentum, args.weight_decay])
 
         if (e+1) % args.val_epochs == 0:
 
@@ -209,22 +220,28 @@ def main(args):
             val_loss, val_acc = 0.0 , 0.0
             eddl.set_mode(net, 0)
             eddl.reset_loss(net)
-            d.SetSplit(ecvl.SplitType.validation)
-            #d.SetSplit(ecvl.SplitType.test)
-            d.ResetAllBatches()
+            
+            #d.SetSplit(ecvl.SplitType.validation)
+            d.SetSplit(ecvl.SplitType.test)
+            
+            d.ResetAllBatches(shuffle=False)
+            d.Start()
 
             metric = eddl.getMetric("categorical_accuracy")
             error = eddl.getLoss("soft_cross_entropy")
             np_out = None
+
             for b in range(num_batches_val):
 
                 print("Epoch {:d}/{:d} (batch {:d}/{:d}) - ".format(
                 e + 1, args.epochs, b + 1, num_batches_val
                 ))
 
-                d.LoadBatch(x, y)
+
+                samples,x,y = d.GetBatch()
 
                 eddl.forward(net, [x])
+
                 output = eddl.getOutput(out)
 
                 # These .value return a sum
@@ -238,35 +255,34 @@ def main(args):
                 else:
                    np_out, np_y = np.concatenate((np_out, np.argmax(output.getdata(),axis=1)), axis=0),  np.concatenate((np_y, np.argmax(y.getdata(),axis=1)), axis=0)
 
-            
-            val_loss = val_loss / (num_batches_val * args.batch_size)
-
-            #save best model
-            if best_val < val_acc:
-                best_val = val_acc
-                print("Saving weights")
-                eddl.save( net, os.path.join(args.checkpoints, "{}.cpc_epoch_{}_val_{:.2f}.bin".format(args.name,e+1,val_acc)), "bin" )
-
-            ba_score = balanced_accuracy_score(np_y,np_out)
-            val_acc  = ba_score
+            d.Stop()
+            val_loss = val_loss / (num_samples_val) 
+            val_acc = val_acc / (num_samples_val) 
 
             # compute score weights because of class unbalance in the test/validation set
-            scores = utils.comp_stats( confusion_matrix(np_y,np_out) )
+            scores = utils.comp_stats( confusion_matrix(np_y,np_out))
+
             weights = 1. / np.unique(np_y, return_counts=True)[1]
             weights = [ w / weights.sum() for w in weights] 
 
-            acc_score = scores['ACC'].mean()
-            spec_score = (scores['TNR']*weights).mean()
+            ba_score = (scores['BA']*weights).sum()
+            spec_score = (scores['TNR']*weights).sum()
             precision_score, sens_score, f1_score, _ =  precision_recall_fscore_support(np_y,np_out,average='weighted', zero_division = 0 )
+ 
+            #save best model
+            if best_val < ba_score:
+                best_val = ba_score
+                print("Saving weights")
+                eddl.save( net, os.path.join(args.checkpoints, "{}.cpc_epoch_{}_val_{:.2f}.bin".format(args.name,e+1,ba_score)), "bin" )
 
             print("F1 Score:\t", f1_score)
             print("Recall/Sensitivity Score:\t", sens_score)
             print("Specificity Score:\t", spec_score)
             print("Precision Score:\t", precision_score)
-            print("Balanced accuracy:\t", ba_score)
-            print("Categorical accuracy:\t", acc_score)
+            print("Categorical accuracy:\t", val_acc)
             print("---Validation Loss:\t%s ---" % val_loss)
-            print("---Validation Accuracy:\t%s ---" % val_acc)
+            print("---Validation Balanced Accuracy:\t%s ---" % ba_score)
+            print("---Validation Best Balanced Accuracy:\t%s ---" % best_val)
 
             if args.wandb:
                 run.log({"train_time_epoch": tttse, "train_loss": train_loss, "train_acc": train_acc, "val_loss": val_loss, "val_acc": val_acc })
@@ -281,9 +297,10 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("in_ds", help = 'path to the dataset',metavar="INPUT_DATASET")
-    parser.add_argument("--epochs", help='number of training epochs', type=int, metavar="INT", default=50)
-    parser.add_argument("--batch-size", help='batch-size', type=int, metavar="INT", default=32)
+    parser.add_argument("--epochs", help='number of training epochs', type=int, metavar="INT", default=100)
+    parser.add_argument("--batch-size", help='batch-size', type=int, metavar="INT", default=120)
     parser.add_argument("--lr", help='learning rate' ,type=float, default=0.0001)
+    parser.add_argument("--momentum", help='momentum' ,type=float, default=0.99)
     parser.add_argument("--weight-decay", help='weight-decay' ,type=float, default=5e-4)
     parser.add_argument("--val_epochs", help='validation set inference each (default=1) epochs', type=int, metavar="INT", default=1)
     parser.add_argument('--gpu', nargs='+', type=int, required=False, help='`--gpu 1 1` to use two GPUs')
@@ -292,10 +309,9 @@ if __name__ == "__main__":
     parser.add_argument("--pretrain", help='use pretrained resnet network: default=18, allows 50 and -1 (resnet 18 not pretrained)', type=int,  default=18)
     parser.add_argument("--input-size", type=int, help='224 px or original size', default=224)
     parser.add_argument("--seed", help='training seed', type=int, default=1990)
-    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_224_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_224_balanced_adenoma.yml')
+    parser.add_argument("--yml-name", help='yml name (default=deephealth-uc2-7000_balanced_adenoma.yml )', type=str, default='deephealth-uc2-7000_balanced_adenoma.yml')
     parser.add_argument("--ckpts", help='resume trining from a checkpoint', metavar='RESUME_PATH', default='')
     parser.add_argument("--mem", metavar="|".join(MEM_CHOICES), choices=MEM_CHOICES, default="full_mem")
     parser.add_argument("--lsb", help='multi-gpu update frequency', type=int, metavar="INT", default=1)
     parser.add_argument('--wandb', action='store_true', help='enable wandb logs', default=False)
     main(parser.parse_args())
-
