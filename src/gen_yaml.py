@@ -126,7 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', help='seed for data balancing', type=int, default=42)
     parser.add_argument('--gen_HG_LG', action='store_true', help='create yml for hg lg only, 2 classes, for 800', default=False)
     parser.add_argument('--gen_adenoma', action='store_true', help='create yml for adenoma type only, 3 classes, for 7000', default=False)
-    parser.add_argument('--bal_idx', type=int, help='less represented class index for dataset balancing (default 3)', default=3)
+    parser.add_argument('--bal_idx', type=int, help='less represented class for dataset balancing (default 3 => 4th)', default=3)
 
     args = parser.parse_args()
     list_dir = [os.path.join(args.folder, f) for f in os.listdir(args.folder) if os.path.isdir(os.path.join(args.folder, f)) ]
@@ -139,6 +139,9 @@ if __name__ == '__main__':
         print('Yaml Generation in', basepath )
 
         folder_name = basepath.split('/')[-1]
+        if '800' not in folder_name and '7000' not in folder_name:
+            continue
+
 
         if args.gen_800_224 and '800_224' in basepath and not os.path.isdir(basepath):
             print('Create 800_224 folder')
@@ -263,4 +266,3 @@ if __name__ == '__main__':
           with open( os.path.join(basepath, yml_name + '.yml'), 'w') as f:
             yaml.safe_dump(yaml_dict, f, default_flow_style=False)
     
-
