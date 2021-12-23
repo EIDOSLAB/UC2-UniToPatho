@@ -83,8 +83,6 @@ def main(args):
 
     x = Tensor([args.batch_size, d.n_channels_, size[0], size[1]])
     y = Tensor([args.batch_size, len(d.classes_)])
-    d.SetSplit(ecvl.SplitType.training)
-    num_samples = len(d.GetSplit())
 
     d.SetSplit(ecvl.SplitType.test)
     num_samples = len(d.GetSplit())
