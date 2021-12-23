@@ -113,6 +113,7 @@ Example:
 ```
 usage: colorectal_polyp_classification_training.py [-h] [--epochs INT]
                                                    [--batch-size INT]
+                                                   [--momentum MOMENTUM]
                                                    [--lr LR]
                                                    [--weight-decay WEIGHT_DECAY]
                                                    [--val_epochs INT]
@@ -136,6 +137,7 @@ optional arguments:
   -h, --help            show this help message and exit
   --epochs INT          number of training epochs
   --batch-size INT      batch-size
+  --momentum            SGD momentum
   --lr LR               learning rate
   --weight-decay        weight-decay
   --val_epochs INT      validation set inference each (default=1) epochs
